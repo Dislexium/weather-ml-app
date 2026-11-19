@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 env:
-  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/weather-ml-app
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME || 'test' }}/weather-ml-app
   TAG: v1
-
 jobs:
   build-test-ship:
     runs-on: ubuntu-latest
