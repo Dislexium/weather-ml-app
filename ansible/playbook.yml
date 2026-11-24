@@ -1,0 +1,72 @@
+- name: Prepare the production server
+  hosts: localhost
+  connection: local
+  vars:
+    k8s_files: https://raw.githubusercontent.com/Dislexium/weather-ml-app/main/k8s
+    replicas: 3
+  tasks:
+    - name: (a) Get the latest kubectl version
+      ansible.builtin.uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: true
+      register: kubectl_version
+
+    - name: (a) Install kubectl
+      become: true
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version.content | trim }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: (b) Install Docker
+      become: true
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+        update_cache: true
+
+    - name: (b) Let the ubuntu user run Docker
+      become: true
+      ansible.builtin.user:
+        name: "{{ ansible_user_id }}"
+        groups: docker
+        append: true
+
+    - name: (b) Install Minikube
+      become: true
+      ansible.builtin.get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: "0755"
+
+    - name: (b) Start Minikube
+      ansible.builtin.command: sg docker -c "minikube start --driver=docker"
+      register: minikube_start
+      changed_when: "'Done!' in minikube_start.stdout"
+
+    - name: (c) Deploy the app (k8s/deployment.yaml)
+      ansible.builtin.command: kubectl apply -f {{ k8s_files }}/deployment.yaml
+      register: deploy
+      changed_when: "'unchanged' not in deploy.stdout"
+
+    - name: (d) Create the service (k8s/service.yaml)
+      ansible.builtin.command: kubectl apply -f {{ k8s_files }}/service.yaml
+      register: service
+      changed_when: "'unchanged' not in service.stdout"
+
+    - name: (e) Scale to {{ replicas }} replicas
+      ansible.builtin.command: kubectl scale deployment weather-ml-app --replicas={{ replicas }}
+      changed_when: true
+
+    - name: (e) Wait until every replica is ready
+      ansible.builtin.command: kubectl rollout status deployment/weather-ml-app --timeout=300s
+      changed_when: false
+
+    - name: Show what is running
+      ansible.builtin.command: kubectl get deployments,services,pods
+      register: status
+      changed_when: false
+
+    - name: Print what is running
+      ansible.builtin.debug:
+        var: status.stdout_lines
