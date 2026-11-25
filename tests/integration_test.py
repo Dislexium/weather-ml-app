@@ -59,7 +59,7 @@ class TestModelAppIntegration(unittest.TestCase):
 
 			'clear', 'cloudy', 'drizzly', 'foggy', 'hazey',
 
-			'misty', 'rainy', 'smokey', 'thunderstorm'
+			'misty', 'rain', 'smokey', 'thunderstorm'
 
 		]
 
